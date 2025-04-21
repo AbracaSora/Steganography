@@ -287,7 +287,10 @@ class VQModel(pl.LightningModule):
                     print(f"{context}: Restored training weights")
 
     def init_from_ckpt(self, path, ignore_keys=list()):
-        sd = torch.load(path, map_location="cpu",weights_only=False)["state_dict"]
+        if path.endswith('.ckpt'):
+            sd = torch.load(path, map_location="cpu",weights_only=False)["state_dict"]
+        else:
+            sd = torch.load(path, map_location="cpu",weights_only=True)
         keys = list(sd.keys())
         for k in keys:
             for ik in ignore_keys:

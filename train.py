@@ -21,9 +21,9 @@ dataset_path = Path("../images")
 secrets_path = Path("./images/images_100")
 
 # 加载配置文件
-config = OmegaConf.load("./VQ4_mir.yaml")
 # first_process:VQModelInterface = instantiate_from_config(config)
 # first_process.init_from_ckpt("model/model.ckpt")
+config = OmegaConf.load("./VQ4_mir.yaml")
 second_process: VQModelInterface = instantiate_from_config(config)
 second_process.init_from_ckpt("./models/first_stage_models/vq-f4/model.ckpt")
 output_process: VQModelInterface = instantiate_from_config(config)
@@ -33,7 +33,6 @@ output_process.init_from_ckpt("./models/first_stage_models/vq-f4/model.ckpt")
 transformer = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.ToTensor(),
-    # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
 
