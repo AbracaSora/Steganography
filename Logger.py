@@ -82,3 +82,4 @@ class TrainingLogger(logging.Logger):
         plt.title('Training Loss')
         plt.legend()
         plt.savefig(filename)
+        plt.close()
