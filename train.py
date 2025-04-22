@@ -21,8 +21,6 @@ dataset_path = Path("../images")
 secrets_path = Path("./images/images_100")
 
 # 加载配置文件
-# first_process:VQModelInterface = instantiate_from_config(config)
-# first_process.init_from_ckpt("model/model.ckpt")
 config = OmegaConf.load("./VQ4_mir.yaml")
 first_stage_model: VQModelInterface = instantiate_from_config(config)
 first_stage_model.init_from_ckpt("./models/first_stage_models/vq-f4/model.ckpt")
@@ -77,10 +75,10 @@ test_logger = TrainingLogger(log_file=f"test_log_{timestr}.log")
 torch.cuda.empty_cache()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-l1_loss = torch.nn.L1Loss().cuda()
-ssim = torchmetrics.image.StructuralSimilarityIndexMeasure(data_range=1.0).cuda()
+l1_loss = torch.nn.L1Loss().to(device)
+ssim = torchmetrics.image.StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
 
-loss = loss_fn().cuda()
+loss = loss_fn().to(device)
 param = list(first_stage_model.parameters()) + list(second_stage_model.parameters())
 optimizer = torch.optim.Adam(param, lr=1e-5)
 first_stage_model.to(device)
