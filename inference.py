@@ -1,7 +1,6 @@
-import numpy as np
 import torchmetrics
 from PIL import Image
-from loss import ImageReconstructionLoss
+from utils.loss import ImageReconstructionLoss
 import torch
 from omegaconf import OmegaConf
 from torchvision.transforms import transforms

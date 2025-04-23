@@ -13,8 +13,8 @@ from tqdm import tqdm
 from torchvision.utils import save_image
 import datetime
 import torchmetrics.image
-from Logger import TrainingLogger
-from loss import ImageReconstructionLoss as loss_fn
+from utils.Logger import TrainingLogger
+from utils.loss import ImageReconstructionLoss as loss_fn
 
 # 指定数据集路径
 dataset_path = Path("../images")
