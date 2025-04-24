@@ -104,8 +104,8 @@ for epoch in range(epochs):
     second_stage_model.train()
     total_loss = 0
     # 训练
-    pbar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{epochs}", leave=False)
-    for i, image in enumerate(pbar):
+    train_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{epochs}", leave=False)
+    for i, image in enumerate(train_bar):
         image = image.to(device)
         secret_path = generate_secret()
         secret = Image.open(secret_path).convert("RGB")
@@ -134,7 +134,7 @@ for epoch in range(epochs):
         # ssim_loss = 1 - ssim(recon_image, image)
         # loss_value = 0.5 * mseLoss + alpha * decoderLoss + beta * perceptualLoss + gamma * l1Loss + delta * ssim_loss
         # total = epochs * len(dataloader)
-        global_step = epoch * len(pbar) + i
+        global_step = epoch * len(train_bar) + i
         # alpha = global_step /total * 0.6 + 0.2
         l1Loss = l1_loss(output, secret)
         ssimLoss = (1 - ssim(output, secret))
@@ -149,14 +149,14 @@ for epoch in range(epochs):
         total_loss += loss_value.item()
         loss_value.backward()
         optimizer.step()
-        pbar.set_postfix(loss=loss_value.item())
+        train_bar.set_postfix(loss=loss_value.item())
         if i % 10 == 0:
             save_image(recon_image[0], f"output/reconstructed_{epoch}_{i}.png")
             save_image(image[0], f"output/original_{epoch}_{i}.png")
             save_image(output[0], f"output/output_{epoch}_{i}.png")
 
-    train_logger.log_epoch(epoch)
-    loss_list.append(total_loss / len(pbar))
+    train_logger.log_epoch(epoch, len(train_bar))
+    loss_list.append(total_loss / len(train_bar))
 
     # 测试
     first_stage_model.eval()
@@ -181,7 +181,7 @@ for epoch in range(epochs):
 
             l1Loss = l1_loss(output, secret)
             ssimLoss = (1 - ssim(output, secret))
-            global_step = (epoch + 1) * len(pbar)
+            global_step = (epoch + 1) * len(train_bar)
             loss_dict = loss(recon_image, image, global_step)
 
             loss_value = 0.1 * l1Loss + 0.1 * ssimLoss + 0.8 * loss_dict[0]
@@ -196,7 +196,7 @@ for epoch in range(epochs):
                 save_image(image[0], f"output/test_original_{epoch}_{i}.png")
                 save_image(output[0], f"output/test_output_{epoch}_{i}.png")
 
-        test_logger.log_epoch(epoch)
+        test_logger.log_epoch(epoch, len(test_bar))
         loss_list.append(total_test_loss / len(test_bar))
 
 train_logger.save_loss_plot(filename=f"loss_plot_{timestr}.png")

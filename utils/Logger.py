@@ -43,12 +43,12 @@ class TrainingLogger(logging.Logger):
                       f"Perceptual Loss: {perceptual_loss:.4f}, Recon Loss: {recon_loss:.4f}, "
                       f"Final Loss: {final_loss:.4f}")
 
-    def log_epoch(self, epoch):
-        avg_ssim = self.total_ssim / len(self.ssim_list)
-        avg_l1 = self.total_l1 / len(self.l1_list)
-        avg_perceptual_loss = self.total_perceptual_loss / len(self.perceptual_loss_list)
-        avg_recon_loss = self.total_recon_loss / len(self.recon_loss_list)
-        avg_final_loss = self.total_final_loss / len(self.final_loss_list)
+    def log_epoch(self, epoch, total):
+        avg_ssim = self.total_ssim / total
+        avg_l1 = self.total_l1 / total
+        avg_perceptual_loss = self.total_perceptual_loss / total
+        avg_recon_loss = self.total_recon_loss / total
+        avg_final_loss = self.total_final_loss / total
 
         self.info(f"Epoch {epoch}: "
                   f"Average SSIM: {avg_ssim:.4f}, Average L1 Loss: {avg_l1:.4f}, "
