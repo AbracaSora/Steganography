@@ -81,6 +81,9 @@ ssim = torchmetrics.image.StructuralSimilarityIndexMeasure(data_range=1.0).to(de
 loss = loss_fn().to(device)
 param = list(first_stage_model.parameters()) + list(second_stage_model.parameters())
 optimizer = torch.optim.Adam(param, lr=1e-5)
+# 设定学习率衰减
+decayRate = 0.96
+lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate）
 first_stage_model.to(device)
 second_stage_model.to(device)
 
@@ -195,7 +198,8 @@ for epoch in range(epochs):
                 save_image(recon_image[0], f"output/test_reconstructed_{epoch}_{i}.png")
                 save_image(image[0], f"output/test_original_{epoch}_{i}.png")
                 save_image(output[0], f"output/test_output_{epoch}_{i}.png")
-
+                
+        # lr_scheduler.step()
         test_logger.log_epoch(epoch, len(test_bar))
         loss_list.append(total_test_loss / len(test_bar))
 
