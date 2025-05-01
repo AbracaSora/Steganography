@@ -21,11 +21,11 @@ dataset_path = Path("../images")
 secrets_path = Path("./images/images_100")
 
 # 加载配置文件
-config = OmegaConf.load("./VQ4_mir.yaml")
+config = OmegaConf.load("./model/VQ4_mir.yaml")
 first_stage_model: VQModelInterface = instantiate_from_config(config)
-first_stage_model.init_from_ckpt("./models/first_stage_models/vq-f4/model.ckpt")
+first_stage_model.init_from_ckpt("./model/model.ckpt")
 second_stage_model: VQModelInterface = instantiate_from_config(config)
-second_stage_model.init_from_ckpt("./models/first_stage_models/vq-f4/model.ckpt")
+second_stage_model.init_from_ckpt("./model/model.ckpt")
 
 # 数据预处理
 transformer = transforms.Compose([
@@ -83,7 +83,7 @@ param = list(first_stage_model.parameters()) + list(second_stage_model.parameter
 optimizer = torch.optim.Adam(param, lr=1e-5)
 # 设定学习率衰减
 decayRate = 0.96
-lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate）
+lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate)
 first_stage_model.to(device)
 second_stage_model.to(device)
 
@@ -120,7 +120,7 @@ for epoch in range(epochs):
         secret_latent = first_stage_model.encode(secret)
 
         # 进行隐写处理
-        latent_object = 0.5 * image_latent + 0.5 * secret_latent
+        latent_object = first_stage_model.encode_with_secret(image, secret)
 
         # 重建图像
         recon_image = first_stage_model.decode(latent_object)
@@ -177,7 +177,7 @@ for epoch in range(epochs):
             secret = secret.repeat(batch_size, 1, 1, 1).to(device)
             image_latent = first_stage_model.encode(image)
             secret_latent = first_stage_model.encode(secret)
-            latent_object = 0.5 * image_latent + 0.5 * secret_latent
+            latent_object = first_stage_model.encode_with_secret(image, secret)
             recon_image = first_stage_model.decode(latent_object)
             recon_image_latent = second_stage_model.encode(recon_image)
             output = second_stage_model.decode(recon_image_latent)
@@ -198,15 +198,15 @@ for epoch in range(epochs):
                 save_image(recon_image[0], f"output/test_reconstructed_{epoch}_{i}.png")
                 save_image(image[0], f"output/test_original_{epoch}_{i}.png")
                 save_image(output[0], f"output/test_output_{epoch}_{i}.png")
-                
+
         # lr_scheduler.step()
         test_logger.log_epoch(epoch, len(test_bar))
         loss_list.append(total_test_loss / len(test_bar))
 
-    if (epoch + 1) % 5 == 0:
-        # 保存模型
-        torch.save(first_stage_model.state_dict(), f"first_process_{epoch}_{timestr}.pth")
-        torch.save(second_stage_model.state_dict(), f"second_process_{epoch}_{timestr}.pth")
+    if (epoch+1) % 5 == 0:
+        torch.save(first_stage_model.state_dict(), f"first_process_{epoch+1}_{timestr}.pth")
+        torch.save(second_stage_model.state_dict(), f"second_process_{epoch+1}_{timestr}.pth")
+        torch.save(optimizer.state_dict(), f"optimizer_{epoch+1}_{timestr}.pth")
 
 train_logger.save_loss_plot(filename=f"loss_plot_{timestr}.png")
 test_logger.save_loss_plot(filename=f"test_loss_plot_{timestr}.png")
@@ -216,5 +216,5 @@ plt.ylabel('Loss')
 plt.title('Training Loss')
 plt.savefig('loss_plot.png')
 
-torch.save(first_stage_model.state_dict(), f"second_process_final_{timestr}.pth")
-torch.save(second_stage_model.state_dict(), f"output_process_final_{timestr}.pth")
+torch.save(first_stage_model.state_dict(), f"first_process_final_{timestr}.pth")
+torch.save(second_stage_model.state_dict(), f"second_process_final_{timestr}.pth")
