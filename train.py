@@ -83,7 +83,7 @@ param = list(first_stage_model.parameters()) + list(second_stage_model.parameter
 optimizer = torch.optim.Adam(param, lr=1e-5)
 # 设定学习率衰减
 decayRate = 0.96
-lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate)
+lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate）
 first_stage_model.to(device)
 second_stage_model.to(device)
 
