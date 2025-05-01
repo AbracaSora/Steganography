@@ -17,16 +17,15 @@ from utils.Logger import TrainingLogger
 from utils.loss import ImageReconstructionLoss as loss_fn
 
 # 指定数据集路径
-# dataset_path = Path("../images")
-dataset_path = Path("./images")
-# secrets_path = Path("./images/images_100")
-secrets_path = Path("./images")
+dataset_path = Path("../images/3")
+secrets_path = Path("../Steganography/images_50")
+
 # 加载配置文件
-config = OmegaConf.load("./model/VQ4_mir.yaml")
+config = OmegaConf.load("../Steganography/model/VQ4_mir.yaml")
 first_stage_model: VQModelInterface = instantiate_from_config(config)
-first_stage_model.init_from_ckpt("./model/model.ckpt")
+first_stage_model.init_from_ckpt("../RoSteALS/models/first_stage_models/vq-f4/model.ckpt")
 second_stage_model: VQModelInterface = instantiate_from_config(config)
-second_stage_model.init_from_ckpt("./model/model.ckpt")
+second_stage_model.init_from_ckpt("../RoSteALS/models/first_stage_models/vq-f4/model.ckpt")
 
 # 数据预处理
 transformer = transforms.Compose([
@@ -46,7 +45,7 @@ def list_files(path):
     return files
 
 
-images = list_files(dataset_path)
+images = list_files(dataset_path)[:5000]
 secrets = list_files(secrets_path)
 
 
@@ -74,22 +73,22 @@ train_logger = TrainingLogger(log_file=f"train_log_{timestr}.log")
 test_logger = TrainingLogger(log_file=f"test_log_{timestr}.log")
 # 清除缓存
 torch.cuda.empty_cache()
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 l1_loss = torch.nn.L1Loss().to(device)
 ssim = torchmetrics.image.StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
 
 loss = loss_fn().to(device)
 param = list(first_stage_model.parameters()) + list(second_stage_model.parameters())
+
 optimizer = torch.optim.Adam(param, lr=1e-5)
-# 设定学习率衰减
-decayRate = 0.96
-lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate)
+# decayRate = 0.96
+# lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=decayRate)
+
 first_stage_model.to(device)
 second_stage_model.to(device)
 
-epochs = 10
+epochs = 30
 batch_size = 1
 
 # 创建数据集和数据加载器
@@ -109,8 +108,8 @@ for epoch in range(epochs):
     second_stage_model.train()
     total_loss = 0
     # 训练
-    train_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{epochs}", leave=False)
-    for i, image in enumerate(train_bar):
+    pbar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{epochs}", leave=False)
+    for i, image in enumerate(pbar):
         image = image.to(device)
         secret_path = generate_secret()
         secret = Image.open(secret_path).convert("RGB")
@@ -118,14 +117,19 @@ for epoch in range(epochs):
         secret = secret.repeat(batch_size, 1, 1, 1).to(device)
 
         # 将图像和秘密图像映射到潜在空间
-        image_latent = first_stage_model.encode(image)
-        secret_latent = first_stage_model.encode(secret)
+        # image_latent = first_stage_model.encode(image)
+        # secret_latent = first_stage_model.encode(secret)
 
-        # 进行隐写处理
-        latent_object = first_stage_model.encode_with_secret(image, secret)
+        h_mixed = first_stage_model.encode_with_secret(image, secret)
+        # x_stego = first_stage_model.decode(h_mixed)
 
-        # 重建图像
-        recon_image = first_stage_model.decode(latent_object)
+        #         # 进行隐写处理
+        #         latent_object = 0.5 * image_latent + 0.5 * secret_latent
+
+        #         # 重建图像
+        #         recon_image = first_stage_model.decode(latent_object)
+
+        recon_image = first_stage_model.decode(h_mixed)
 
         # 解码图像中的秘密
         recon_image_latent = second_stage_model.encode(recon_image)
@@ -139,11 +143,13 @@ for epoch in range(epochs):
         # ssim_loss = 1 - ssim(recon_image, image)
         # loss_value = 0.5 * mseLoss + alpha * decoderLoss + beta * perceptualLoss + gamma * l1Loss + delta * ssim_loss
         # total = epochs * len(dataloader)
-        global_step = epoch * len(train_bar) + i
+        global_step = epoch * len(pbar) + i
         # alpha = global_step /total * 0.6 + 0.2
         l1Loss = l1_loss(output, secret)
         ssimLoss = (1 - ssim(output, secret))
         loss_dict = loss(recon_image, image, global_step)
+
+        # loss_value = loss_dict[0]
         loss_value = 0.1 * l1Loss + 0.1 * ssimLoss + 0.8 * loss_dict[0]
 
         # 记录损失
@@ -154,14 +160,14 @@ for epoch in range(epochs):
         total_loss += loss_value.item()
         loss_value.backward()
         optimizer.step()
-        train_bar.set_postfix(loss=loss_value.item())
-        if i % 10 == 0:
+        pbar.set_postfix(loss=loss_value.item())
+        if i % 1000 == 0:
             save_image(recon_image[0], f"output/reconstructed_{epoch}_{i}.png")
             save_image(image[0], f"output/original_{epoch}_{i}.png")
             save_image(output[0], f"output/output_{epoch}_{i}.png")
 
-    train_logger.log_epoch(epoch, len(train_bar))
-    loss_list.append(total_loss / len(train_bar))
+    train_logger.log_epoch(epoch, len(pbar))
+    loss_list.append(total_loss / len(pbar))
 
     # 测试
     first_stage_model.eval()
@@ -177,18 +183,24 @@ for epoch in range(epochs):
             secret = Image.open(secret_path).convert("RGB")
             secret = transformer(secret).unsqueeze(0).to(device)
             secret = secret.repeat(batch_size, 1, 1, 1).to(device)
-            image_latent = first_stage_model.encode(image)
-            secret_latent = first_stage_model.encode(secret)
-            latent_object = first_stage_model.encode_with_secret(image, secret)
-            recon_image = first_stage_model.decode(latent_object)
+
+            # image_latent = first_stage_model.encode(image)
+            # secret_latent = first_stage_model.encode(secret)
+            # latent_object = 0.5 * image_latent + 0.5 * secret_latent
+
+            h_mixed = first_stage_model.encode_with_secret(image, secret)
+            recon_image = first_stage_model.decode(h_mixed)
+
+            # recon_image = first_stage_model.decode(latent_object)
             recon_image_latent = second_stage_model.encode(recon_image)
             output = second_stage_model.decode(recon_image_latent)
 
             l1Loss = l1_loss(output, secret)
             ssimLoss = (1 - ssim(output, secret))
-            global_step = (epoch + 1) * len(train_bar)
+            global_step = (epoch + 1) * len(pbar)
             loss_dict = loss(recon_image, image, global_step)
 
+            # loss_value = loss_dict[0]
             loss_value = 0.1 * l1Loss + 0.1 * ssimLoss + 0.8 * loss_dict[0]
 
             test_logger.log_metrics(i, ssimLoss.item(), l1Loss.item(), loss_dict[1]['perceptual_loss'],
@@ -196,14 +208,20 @@ for epoch in range(epochs):
 
             total_test_loss += loss_value.item()
             test_bar.set_postfix(loss=loss_value.item())
-            if i % 10 == 0:
-                save_image(recon_image[0], f"output/test_reconstructed_{epoch}_{i}.png")
-                save_image(image[0], f"output/test_original_{epoch}_{i}.png")
-                save_image(output[0], f"output/test_output_{epoch}_{i}.png")
+            if i % 1000 == 0:
+                save_image(recon_image[0], f"output_1/test_reconstructed_{epoch}_{i}.png")
+                save_image(image[0], f"output_1/test_original_{epoch}_{i}.png")
+                save_image(output[0], f"output_1/test_output_{epoch}_{i}.png")
 
         # lr_scheduler.step()
-        test_logger.log_epoch(epoch, len(test_bar))
+        test_logger.log_epoch(epoch,len(test_bar))
         loss_list.append(total_test_loss / len(test_bar))
+
+    if (epoch+1) % 5 == 0:
+        torch.save(first_stage_model.state_dict(), f"first_process_{epoch+1}_{timestr}.pth")
+        torch.save(second_stage_model.state_dict(), f"second_process_{epoch+1}_{timestr}.pth")
+        torch.save(optimizer.state_dict(), f"optimizer_{epoch+1}_{timestr}.pth")
+
 
 train_logger.save_loss_plot(filename=f"loss_plot_{timestr}.png")
 test_logger.save_loss_plot(filename=f"test_loss_plot_{timestr}.png")
@@ -213,5 +231,5 @@ plt.ylabel('Loss')
 plt.title('Training Loss')
 plt.savefig('loss_plot.png')
 
-torch.save(first_stage_model.state_dict(), f"second_process_{timestr}.pth")
-torch.save(second_stage_model.state_dict(), f"output_process_{timestr}.pth")
+torch.save(first_stage_model.state_dict(), f"first_process_final_{timestr}.pth")
+torch.save(second_stage_model.state_dict(), f"second_process_final_{timestr}.pth")
