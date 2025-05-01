@@ -205,6 +205,11 @@ for epoch in range(epochs):
         test_logger.log_epoch(epoch, len(test_bar))
         loss_list.append(total_test_loss / len(test_bar))
 
+    if (epoch + 1) % 5 == 0:
+        # 保存模型
+        torch.save(first_stage_model.state_dict(), f"first_process_{epoch}_{timestr}.pth")
+        torch.save(second_stage_model.state_dict(), f"second_process_{epoch}_{timestr}.pth")
+
 train_logger.save_loss_plot(filename=f"loss_plot_{timestr}.png")
 test_logger.save_loss_plot(filename=f"test_loss_plot_{timestr}.png")
 plt.plot(loss_list)
@@ -213,5 +218,5 @@ plt.ylabel('Loss')
 plt.title('Training Loss')
 plt.savefig('loss_plot.png')
 
-torch.save(first_stage_model.state_dict(), f"second_process_{timestr}.pth")
-torch.save(second_stage_model.state_dict(), f"output_process_{timestr}.pth")
+torch.save(first_stage_model.state_dict(), f"second_process_final_{timestr}.pth")
+torch.save(second_stage_model.state_dict(), f"output_process_final_{timestr}.pth")
