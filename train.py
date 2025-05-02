@@ -15,17 +15,18 @@ import datetime
 import torchmetrics.image
 from utils.Logger import TrainingLogger
 from utils.loss import ImageReconstructionLoss as loss_fn
+from ocr import OCR
 
 # 指定数据集路径
-dataset_path = Path("../images/3")
-secrets_path = Path("../Steganography/images_50")
+dataset_path = Path("/media/新加卷/images/MIRFlickR/images/")
+secrets_path = Path(".")
 
 # 加载配置文件
-config = OmegaConf.load("../Steganography/model/VQ4_mir.yaml")
+config = OmegaConf.load("./model/VQ4_mir.yaml")
 first_stage_model: VQModelInterface = instantiate_from_config(config)
-first_stage_model.init_from_ckpt("../RoSteALS/models/first_stage_models/vq-f4/model.ckpt")
+first_stage_model.init_from_ckpt("./model/model.ckpt")
 second_stage_model: VQModelInterface = instantiate_from_config(config)
-second_stage_model.init_from_ckpt("../RoSteALS/models/first_stage_models/vq-f4/model.ckpt")
+second_stage_model.init_from_ckpt("./model/model.ckpt")
 
 # 数据预处理
 transformer = transforms.Compose([
@@ -40,7 +41,7 @@ def list_files(path):
         full_path = os.path.join(path, entry)
         if os.path.isdir(full_path):
             files.extend(list_files(full_path))
-        else:
+        elif os.path.isfile(full_path) and full_path.endswith(('.png', '.jpg', '.jpeg')):
             files.append(full_path)
     return files
 
@@ -73,8 +74,8 @@ train_logger = TrainingLogger(log_file=f"train_log_{timestr}.log")
 test_logger = TrainingLogger(log_file=f"test_log_{timestr}.log")
 # 清除缓存
 torch.cuda.empty_cache()
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 l1_loss = torch.nn.L1Loss().to(device)
 ssim = torchmetrics.image.StructuralSimilarityIndexMeasure(data_range=1.0).to(device)
 
@@ -101,8 +102,9 @@ train_dataset, test_dataset = torch.utils.data.random_split(dataset, [int(train_
 train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
-loss_list = []
+ocr = OCR()
 
+loss_list = []
 for epoch in range(epochs):
     first_stage_model.train()
     second_stage_model.train()
@@ -161,6 +163,8 @@ for epoch in range(epochs):
         loss_value.backward()
         optimizer.step()
         pbar.set_postfix(loss=loss_value.item())
+        print(output[0].shape)
+        print(ocr.get_text(output[0]))
         if i % 1000 == 0:
             save_image(recon_image[0], f"output/reconstructed_{epoch}_{i}.png")
             save_image(image[0], f"output/original_{epoch}_{i}.png")
@@ -215,7 +219,7 @@ for epoch in range(epochs):
 
         # lr_scheduler.step()
         test_logger.log_epoch(epoch,len(test_bar))
-        loss_list.append(total_test_loss / len(test_bar))
+        # loss_list.append(total_test_loss / len(test_bar))
 
     if (epoch+1) % 5 == 0:
         torch.save(first_stage_model.state_dict(), f"first_process_{epoch+1}_{timestr}.pth")
